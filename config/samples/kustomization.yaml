@@ -1,0 +1,5 @@
+## Append samples of your project ##
+resources:
+- oadpnac_v1alpha1_nonadminbackup.yaml
+- oadpnac_v1alpha1_nonadminrestore.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
