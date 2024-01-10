@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,11 +43,10 @@ type NonAdminRestoreStatus struct {
 
 // NonAdminRestore is the Schema for the nonadminrestores API
 type NonAdminRestore struct {
+	Spec              NonAdminRestoreSpec   `json:"spec,omitempty"`
+	Status            NonAdminRestoreStatus `json:"status,omitempty"`
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   NonAdminRestoreSpec   `json:"spec,omitempty"`
-	Status NonAdminRestoreStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

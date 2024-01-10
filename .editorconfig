@@ -10,8 +10,11 @@ charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-[*.{yaml,yml}]
+[{*.go,Makefile,go.mod,boilerplate.go.txt}]
+indent_style = tab
+
+[{*.{yaml,yml},PROJECT}]
 indent_size = 2
 
-[*.{md}]
+[{*.md,LICENSE}]
 indent_size = unset

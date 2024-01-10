@@ -1,0 +1,58 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - oadpnac.openshift.io
+  resources:
+  - nonadminbackups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - oadpnac.openshift.io
+  resources:
+  - nonadminbackups/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - oadpnac.openshift.io
+  resources:
+  - nonadminbackups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - oadpnac.openshift.io
+  resources:
+  - nonadminrestores
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - oadpnac.openshift.io
+  resources:
+  - nonadminrestores/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - oadpnac.openshift.io
+  resources:
+  - nonadminrestores/status
+  verbs:
+  - get
+  - patch
+  - update

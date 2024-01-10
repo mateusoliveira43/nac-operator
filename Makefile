@@ -29,7 +29,7 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # openshift.io/nac-operator-bundle:$VERSION and openshift.io/nac-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= openshift.io/nac-operator
+IMAGE_TAG_BASE ?= quay.io/msouzaol/nac-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -51,7 +51,7 @@ endif
 OPERATOR_SDK_VERSION ?= v1.33.0
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= quay.io/msouzaol/nac-operator:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.27.1
 
@@ -95,34 +95,65 @@ help: ## Display this help.
 
 ##@ Development
 
+.PHONY: bundle
+bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
+	$(OPERATOR_SDK) generate kustomize manifests -q
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
+	$(OPERATOR_SDK) bundle validate ./bundle
+
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen # Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-.PHONY: fmt
-fmt: ## Run go fmt against code.
-	go fmt ./...
-
-.PHONY: vet
-vet: ## Run go vet against code.
-	go vet ./...
-
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
+test: envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
 ##@ Build
 
+.PHONY: bundle-build
+bundle-build: ## Build the bundle image.
+	$(CONTAINER_TOOL) build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+
+.PHONY: bundle-push
+bundle-push: ## Push the bundle image.
+	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
+
+# A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
+# These images MUST exist in a registry and be pull-able.
+BUNDLE_IMGS ?= $(BUNDLE_IMG)
+
+# The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
+CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:v$(VERSION)
+
+# Set CATALOG_BASE_IMG to an existing catalog image tag to add $BUNDLE_IMGS to that image.
+ifneq ($(origin CATALOG_BASE_IMG), undefined)
+FROM_INDEX_OPT := --from-index $(CATALOG_BASE_IMG)
+endif
+
+# Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
+# This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
+# https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
+.PHONY: catalog-build
+catalog-build: opm ## Build a catalog image.
+	$(OPM) index add --container-tool docker --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+
+# Push the catalog image.
+.PHONY: catalog-push
+catalog-push: ## Push a catalog image.
+	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
 .PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
+build: manifests generate # Build manager binary.
 	go build -o bin/manager cmd/main.go
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
+run: manifests generate # Run a controller from your host.
 	go run ./cmd/main.go
 
 # If you wish built the manager image targeting other platforms you can use the --platform flag.
@@ -155,28 +186,39 @@ docker-buildx: test ## Build and push docker image for the manager for cross-pla
 
 ##@ Deployment
 
-ifndef ignore-not-found
-  ignore-not-found = false
+OPERATOR_PACKAGE_NAME ?= nac-operator
+NAMESPACE ?= nac-operator
+
+.PHONY: deploy-olm
+deploy-olm: operator-sdk ## Deploy operator to the K8s cluster specified in ~/.kube/config.
+	$(OPERATOR_SDK) run bundle $(BUNDLE_IMG) --namespace $(NAMESPACE)
+
+.PHONY: undeploy-olm
+undeploy-olm: operator-sdk ## Undeploy operator from the K8s cluster specified in ~/.kube/config.
+	$(OPERATOR_SDK) cleanup $(OPERATOR_PACKAGE_NAME) --namespace $(NAMESPACE)
+
+ifndef ignore_not_found
+ignore_not_found = false
 endif
 
 .PHONY: install
-install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+install: manifests kustomize # Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply -f -
 
 .PHONY: uninstall
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+uninstall: manifests kustomize # Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: manifests kustomize # Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
 
 .PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+undeploy: # Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
-##@ Build Dependencies
+##@ Dependencies
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -230,21 +272,6 @@ OPERATOR_SDK = $(shell which operator-sdk)
 endif
 endif
 
-.PHONY: bundle
-bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
-	$(OPERATOR_SDK) generate kustomize manifests -q
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
-	$(OPERATOR_SDK) bundle validate ./bundle
-
-.PHONY: bundle-build
-bundle-build: ## Build the bundle image.
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
-
-.PHONY: bundle-push
-bundle-push: ## Push the bundle image.
-	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
-
 .PHONY: opm
 OPM = ./bin/opm
 opm: ## Download opm locally if necessary.
@@ -262,32 +289,61 @@ OPM = $(shell which opm)
 endif
 endif
 
-# A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
-# These images MUST exist in a registry and be pull-able.
-BUNDLE_IMGS ?= $(BUNDLE_IMG)
+##@ Project commands
 
-# The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
-CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:v$(VERSION)
+.PHONY: deploy-test
+deploy-test: TEST_IMG?=ttl.sh/nac-operator-test:1h
+deploy-test: TEST_BUNDLE_IMAGE?=ttl.sh/nac-operator-test-bundle:1h
+deploy-test: operator-sdk ## Deploy operator to the K8s cluster specified in ~/.kube/config, using test container image repository.
+	IMG=$(TEST_IMG) BUNDLE_IMG=$(TEST_BUNDLE_IMAGE) \
+		make docker-build docker-push bundle bundle-build bundle-push deploy-olm
 
-# Set CATALOG_BASE_IMG to an existing catalog image tag to add $BUNDLE_IMGS to that image.
-ifneq ($(origin CATALOG_BASE_IMG), undefined)
-FROM_INDEX_OPT := --from-index $(CATALOG_BASE_IMG)
-endif
+GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
+GOLANGCI_LINT_VERSION ?= v1.55.2
 
-# Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
-# This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
-# https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
-.PHONY: catalog-build
-catalog-build: opm ## Build a catalog image.
-	$(OPM) index add --container-tool docker --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+.PHONY: golangci-lint
+golangci-lint:
+	@[ -f $(GOLANGCI_LINT) ] || { \
+	set -e ;\
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell dirname $(GOLANGCI_LINT)) $(GOLANGCI_LINT_VERSION) ;\
+	}
 
-# Push the catalog image.
-.PHONY: catalog-push
-catalog-push: ## Push a catalog image.
-	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+.PHONY: lint
+lint: golangci-lint ## Run Go linters checks against all project's Go files.
+	$(GOLANGCI_LINT) run
 
-##@ NAC commands
+.PHONY: lint-fix
+lint-fix: golangci-lint ## Fix Go linters issues.
+	$(GOLANGCI_LINT) run --fix
 
-# TODO add editor config
+EC ?= $(LOCALBIN)/ec-$(shell go env GOOS)-$(shell go env GOARCH)
+EC_VERSION ?= 2.7.2
 
-# TODO add golangci-lint
+.PHONY: editorconfig
+editorconfig:
+	@[ -f $(EC) ] || { \
+	set -e ;\
+	curl -sSLo $(EC).tar.gz https://github.com/editorconfig-checker/editorconfig-checker/releases/download/$(EC_VERSION)/ec-$(shell go env GOOS)-$(shell go env GOARCH).tar.gz ;\
+	tar xzf $(EC).tar.gz ;\
+	chmod +x $(EC) ;\
+	}
+
+.PHONY: ec
+ec: editorconfig ## Run file formatter checks against all project's files.
+	$(EC)
+
+# TODO https://github.com/operator-framework/operator-sdk/issues/6285
+.PHONY: is-bundle-up-to-date
+is-bundle-up-to-date: TEMP:= $(shell mktemp -d)
+is-bundle-up-to-date:
+	@cp -r ./ $(TEMP) && cd $(TEMP) && make bundle && cd - && diff -ruN . $(TEMP)/ || (echo "bundle code is not up to date, run 'make bundle'" && exit 1)
+	@rm -rf $(TEMP)
+
+.PHONY: is-generate-up-to-date
+is-generate-up-to-date: TEMP:= $(shell mktemp -d)
+is-generate-up-to-date:
+	@cp -r ./ $(TEMP) && cd $(TEMP) && make generate && cd - && diff -ruN . $(TEMP)/ || (echo "generate code is not up to date, run 'make generate'" && exit 1)
+	@chmod -R 777 $(TEMP) && rm -rf $(TEMP)
+
+.PHONY: ci
+ci: is-bundle-up-to-date is-generate-up-to-date test lint ec ## Run all quality checks of the project.

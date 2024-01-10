@@ -2,21 +2,51 @@
 
 A Non Admin Controller (NAC) Operator for [OADP operator](https://github.com/openshift/oadp-operator).
 
-## Requirements
+## Development
+
+### Requirements
 
 To run the project, it is necessary the following tools:
 
 - [Go](https://go.dev/dl/) 1.20 or higher
 - [Make](https://www.gnu.org/software/make/)
+- A container tool
+- A Kubernetes cluster
 
-## Development
+### Quick start
 
-TODO
-
-### Operator SDK
-
-The project was generated using Operator SDK version `v1.33.0`, running the following commands
+For a quick start testing of the operator, create `nac-operator` namespace and run
+```sh
+make deploy-test
 ```
+
+After finish testing, run
+```sh
+make undeploy-olm
+```
+
+> **NOTE:** To run operator in different namespace, run `NAMESPACE=<name> make <command>`.
+
+### Development flow
+
+After developing code changes, if `api/` folder was modified, run
+```sh
+make generate
+```
+
+If `api/` or `config/` folders were modified, run
+```sh
+make bundle
+```
+
+Also check [Quality section](#quality), for information about to enforce quality of proposed changes.
+
+> **NOTE:** Run `make help` for more information on all potential `make` targets.
+
+### Architecture
+
+The project was generated using Operator SDK version `v1.33.0` (which uses kubebuilder version `v3.12.0`), running the following commands
+```sh
 operator-sdk \
     --plugins go.kubebuilder.io/v4 \
     --project-version 3 \
@@ -35,20 +65,27 @@ operator-sdk \
     --version v1alpha1 \
     --kind NonAdminRestore \
     --resource --controller
+make bundle # fill in the questions
 ```
-> The information about plugin and project version, as well as project name, repo and domain, is stored in [PROJECT](PROJECT) file
+> **NOTE:** The information about plugin and project version, as well as project name, repo and domain, is stored in [PROJECT](PROJECT) file
 
-TODO how to upgrade Operator SDK version
+To upgrade Operator SDK version, create Operator SDK structure using the current Operator SDK version and the upgrade version, using the same commands presented earlier, in two different folders. Then generate a `diff` file from the two folders and apply changes to project code.
 
 ## Quality
 
-The quality metrics of the project are reproduced by the continuos integration (CI) pipeline of the project. CI configuration in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) file.
+The quality checks of the project are reproduced by the continuos integration (CI) pipeline of the project. CI configuration in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) file.
+
+TODO create CI structure
+
+TODO create CD structure : deploy new images
+
+To run all checks locally, run `make ci`.
 
 ### Tests
 
-To run tests and coverage report, run
-```
-TODO
+To run tests, run
+```sh
+make test
 ```
 
 TODO report, coverage and tests information
@@ -56,21 +93,23 @@ TODO report, coverage and tests information
 ### Linters and code formatters
 
 To run Go linters and check Go code format, run
-```
-TODO
+```sh
+make lint
 ```
 
 To fix Go linters issues and format Go code, run
-```
-TODO
+```sh
+make lint-fix
 ```
 
 Go linters and Go code formatters configuration in [`.golangci.yaml`](.golangci.yaml) file.
 
-To check all repository's files format, run
+To check all files format, run
+```sh
+make ec
 ```
-TODO
-```
+
+Files format configuration in [`.editorconfig`](.editorconfig) file.
 
 ## License
 

@@ -1,0 +1,55 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: nac-operator.v0.0.0
+  namespace: nac-operator
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: NonAdminBackup is the Schema for the nonadminbackups API
+      displayName: Non Admin Backup
+      kind: NonAdminBackup
+      name: nonadminbackups.oadpnac.openshift.io
+      version: v1alpha1
+    - description: NonAdminRestore is the Schema for the nonadminrestores API
+      displayName: Non Admin Restore
+      kind: NonAdminRestore
+      name: nonadminrestores.oadpnac.openshift.io
+      version: v1alpha1
+  description: POC of a Non Admin Controller (NAC) Operator for [OADP operator](https://github.com/openshift/oadp-operator).
+  displayName: oadpnac
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: false
+    type: AllNamespaces
+  keywords:
+  - velero
+  - openshift
+  - oadp
+  links:
+  - name: Nac Operator
+    url: https://github.com/mateusoliveira43/nac-operator
+  maintainers:
+  - email: msouzaol@redhat.com
+    name: mateusoliveira43
+  maturity: alpha
+  provider:
+    name: Red Hat
+    url: https://redhat.com
+  version: 0.0.0

@@ -1,0 +1,74 @@
+# Documentation reference https://github.com/golangci/golangci-lint/blob/v1.55.2/.golangci.reference.yml
+run:
+  timeout: 5m
+  allow-parallel-runners: true
+  skip-dirs-use-default: false
+  modules-download-mode: readonly
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  sort-results: true
+
+issues:
+  exclude-use-default: false
+  exclude-rules:
+    - linters:
+        - lll
+      source: '^//\+kubebuilder:'
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  disable-all: true
+  enable:
+    - dupl
+    - errcheck
+    - exportloopref
+    - goconst
+    - gocyclo
+    - gofmt
+    - goimports
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nakedret
+    - prealloc
+    # TODO - revive
+    - staticcheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  goconst:
+    min-len: 3
+    min-occurrences: 5
+  gofmt:
+    simplify: true
+  govet:
+    disable-all: false
+    enable-all: true
+  misspell:
+    locale: US
+  nakedret:
+    max-func-lines: 30
+  # TODO revive:
+  #   enable-all-rules: true
+  #   rules:
+  #     - name: line-length-limit
+  #       arguments: [120]
+  unparam:
+    check-exported: true
+
+severity:
+  default-severity: error
+  case-sensitive: false
